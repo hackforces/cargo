@@ -13,7 +13,7 @@ for v in versions:
         if idx < 6:
             continue
         tmp = k.split()
-        lst.append({"name":tmp[0], "version": tmp[1][1:-1]})
+        lst.append({"name":tmp[0], "version": tmp[1]})
     if not os.path.exists(v):
         os.makedirs(v)
     with open(v+'/packages.json', 'w') as file:

@@ -61,6 +61,78 @@ def check_existence_in_repository(os_name, utils):
                 datafile.close()
     return False
 
+# This functions for external file adding unification (requests.txt, DB, composer.json, etc.)
+def add_external_file():
+    answer = ''
+    local_machine = 1
+    while answer not in ["N", "Y", "n", "y"]:
+        answer = raw_input("This file on local machine? [Y/N]")
+
+    if answer in ["n", "N"]:
+        local_machine = 0
+
+    answer = ''
+    while not answer and len(answer) != 2:
+        answer = raw_input("Please, enter path (or link) of your file and destination path in your Docker")
+
+    if local_machine:
+        dockerfile.write("COPY " + answer[0] + " " + answer[1] + "\n")
+    else:
+        dockerfile.write("ADD " + answer[0] + " " + answer[1] + "\n")
+
+    return answer
+
+# This function for interactive mode. It allows to expand
+# program functions for more detail settings
+def language_interactive(os_installer, language):
+    files = []
+    if 'python' in language:
+        dockerfile.write("RUN "+os_installer+" -y install python-pip\n")
+
+        answer = ''
+        while answer not in ["N", "Y", "n", "y"]:
+            answer = raw_input("This file on local machine? [Y/N]")
+
+        if answer in ["n", "N"]:
+            return 0
+        else:
+            files = add_external_file()
+
+        # TODO: Make a choice of python version AND check files
+        dockerfile.write("RUN pip install -r "+files[1]+"requests.txt \n")
+
+def database_interactive(os_installer, database):
+    answer = ''
+    while answer not in ["N", "Y", "n", "y"]:
+        answer = raw_input("This file on local machine? [Y/N]")
+
+    if answer in ["n", "N"]:
+        return 0
+    else:
+        files = add_external_file()
+
+    username = raw_input("Please, enter username")
+    password = raw_input("Please, enter password")
+    database_name = raw_input("Please, enter database name")
+
+    # https://stackoverflow.com/questions/25920029/setting-up-mysql-and-importing-dump-within-dockerfile
+    # https://stackoverflow.com/questions/4546778/how-can-i-import-a-database-with-mysql-from-terminal
+    if "mysql" in database:
+        dockerfile.write("RUN /bin/bash -c \"/usr/bin/mysqld_safe &\" && \
+                            sleep 5 && \
+                            mysql -u %s -e \"CREATE DATABASE %s\" && \
+                            mysql -u %s -p %s %s < %s\n" % username, database_name,
+                            username, password, database_name, files[1])
+
+    if "postgresql" in database:
+        dockerfile.write("RUN psql -U %s %s < %s\n", username, database_name, files[1])
+
+    # https://docs.mongodb.com/manual/tutorial/backup-and-restore-tools/
+    if "mongodb" in database_name:
+        dockerfile.write("RUN mongorestore %s" % files[1])
+
+        
+
 # Function for choice of specific utils from OS's repository
 def check_existence(os_name, default):
     input_value = raw_input("You can choose default package '%s' (press Enter) or enter your own package" % default)

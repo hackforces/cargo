@@ -86,20 +86,38 @@ def add_external_file():
 # program functions for more detail settings
 def language_interactive(os_installer, language):
     files = []
+
+    answer = ''
+    while answer not in ["N", "Y", "n", "y"]:
+        answer = raw_input("This file on local machine? [Y/N]")
+
+    if answer in ["n", "N"]:
+        return 0
+    else:
+        files = add_external_file()
+
     if 'python' in language:
         dockerfile.write("RUN "+os_installer+" -y install python-pip\n")
-
-        answer = ''
-        while answer not in ["N", "Y", "n", "y"]:
-            answer = raw_input("This file on local machine? [Y/N]")
-
-        if answer in ["n", "N"]:
-            return 0
+        dockerfile.write("RUN p=pwn && cd " + os.path.dirname(files[1]))
+        if "3" in language:
+            dockerfile.write(" && pip3 install -r ./requests.txt ")
         else:
-            files = add_external_file()
+            dockerfile.write(" && pip install -r ./requests.txt ")
 
-        # TODO: Make a choice of python version AND check files
-        dockerfile.write("RUN pip install -r "+files[1]+"requests.txt \n")
+        dockerfile.write("&& cd $p\n")
+
+    if 'php' in language:
+        dockerfile.write("RUN curl -sS https://getcomposer.org/installer | sudo %s -- --install-dir=/usr/local/bin --filename=composer\n"
+                         % language)
+        # As php's composer make install all references from composer.json in current directory
+        # we need to enter to this directory and return come back
+        dockerfile.write("RUN p=pwn && cd "+ os.path.dirname(files[1])+" && composer install && cd $p\n")
+
+    if 'js' in language:
+        dockerfile.write("RUN "+os_installer+" -y install npm\n")
+        # As nodejs's npm make install all references from package.json in current directory
+        # we need to enter to this directory and return come back
+        dockerfile.write("RUN p=pwn && cd " + os.path.dirname(files[1]) + " && npm install && cd $p\n")
 
 def database_interactive(os_installer, database):
     answer = ''
@@ -185,20 +203,16 @@ with MyApp() as app:
     app.args.add_argument('-t', '--telnet', action='store',
                           help='make active telnet-server and set root\'s password' )
 
-    # TODO: Change this flag to argumentless
     app.args.add_argument('-r', '--restart', action='store',
                           help='choice container restart condition' )
 
-    # TODO: Change this flag to argumentless
-    app.args.add_argument('-v', '--volume', action='store',
+    app.args.add_argument('-v', '--volume', action='store_true',
                           help='choice common (shared) directory(-ies)' )
 
-    # TODO: Change this flag to argumentless
-    app.args.add_argument('-a', '--add', action='store',
+    app.args.add_argument('-a', '--add', action='store_true',
                           help='choice voulume directory(-ies)' )
 
-    # TODO: Change this flag to argumentless
-    app.args.add_argument('-w', '--workdir', action='store',
+    app.args.add_argument('-w', '--workdir', action='store_true',
                           help='choice workdir path' )
     # run the application
     app.run()
@@ -232,7 +246,6 @@ with MyApp() as app:
     # Language pull: Rust, Go, Ruby, Python, PHP, Javascript, C, C++, Java
     # For Rust: curl https://sh.rustup.rs -sSf | sh
 
-    # TODO: Make checking - if user entered not standart value
     if app.pargs.language:
         specify_language = 0
         language_packet = ""
@@ -280,7 +293,6 @@ with MyApp() as app:
 
     # Make a choice of Databases
     # Pull of DBs: MySQL, PostgreSQL, MongoDB
-    # TODO: Make checking - if user entered not standart value
     if app.pargs.database:
         app.log.info("Received option: db => %s" % app.pargs.database)
         database = ""

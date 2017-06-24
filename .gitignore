@@ -90,3 +90,7 @@ ENV/
 
 # OS'es packages list
 packages.json
+
+# Dockerfile
+test_Dockerfile
+Dockerfile

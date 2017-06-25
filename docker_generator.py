@@ -63,30 +63,36 @@ def check_existence_in_repository(os_name, utils):
                     datafile.close()
     return False
 
+
+
+def add_external_file(cmd, answer):
+    answer = answer.split(" ")
+    return ("{} {} {}\n".format(cmd, answer[0], answer[1]))
+
 # This functions for external file adding unification (requests.txt, DB, composer.json, etc.)
-def add_external_file():
+
+def add_external_file_interactive():
     answer = ''
-    local_machine = 1
+    cmd = "ADD"
     while answer.lower() not in "ny":
         answer = input("This file on local machine? [Y/N]: ")
 
     if answer.lower() is "n":
-        local_machine = 0
+        cmd = "COPY"
 
     answer = ''
     while not answer and len(answer) != 2:
-        answer = input("Please, enter path (or link) of your file and destination path in your Docker: ")
+        answer = input("Please, enter source path (or link) of your file and destination path in your Docker: ")
 
-    if local_machine:
-        dockerstrings.append("COPY {} {}\n".format(answer[0], answer[1]))
-    else:
-        dockerstrings.append("ADD {} {}\n".format(answer[0], answer[1]))
+    dockerstrings.append(add_external_file(cmd, answer))
+    return True
 
-    return answer
 
+def language_config() :
+    return False
 # This function for interactive mode. It allows to expand
 # program functions for more detail settings
-def language_interactive(os_installer, language):
+def language_interactive(install, language):
     files = []
 
     answer = ''
@@ -96,10 +102,10 @@ def language_interactive(os_installer, language):
     if answer.lower() is "n":
         return 0
     else:
-        files = add_external_file()
+        files = add_external_file_interactive()
 
     if 'python' in language.lower():
-        dockerstrings.append("RUN {} python-pip\n".format(os_installer))
+        dockerstrings.append("RUN {} python-pip\n".format(install))
         dockerstrings.append("RUN p=pwn && cd {}".format(os.path.dirname(files[1])))
         if "3" in language:
             dockerstrings.append(" && pip3 install -r ./requests.txt ")
@@ -128,7 +134,7 @@ def database_interactive(database):
     if answer.lower() is "n":
         return 0
     else:
-        files = add_external_file()
+        files = add_external_file_interactive()
 
     username = input("Please, enter username: ")
     password = input("Please, enter password: ")
@@ -383,6 +389,6 @@ with Cargo() as app:
         dockerstrings.append("WORKDIR {}\n".format(app.pargs.workdir))
 
     dockerfile = open("Dockerfile", "w")
-    print dockerstrings
+    # print(dockerstrings)
     dockerfile.writelines(dockerstrings)
     dockerfile.close()

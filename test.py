@@ -1,6 +1,8 @@
 import unittest
+from unittest.mock import patch
 import random
 import string
+import subprocess
 from docker_generator import *
 
 def selectOs(os):
@@ -20,7 +22,8 @@ class testAppFunctions(unittest.TestCase):
 	outf  = ""
 
 	def setUp(self):
-		self.outf  = open("test_Dockerfile","r+")
+		dockerstrings = []
+		# self.outf  = open("test_Dockerfile","r+")
 
 	def test_sshd_config(self):
 		#preset
@@ -28,14 +31,15 @@ class testAppFunctions(unittest.TestCase):
 		tmp_os = random.choice(self.os)
 		tmp_pw = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
 		# _ln = random.choice(self.languagesc)
-
+		# my_raw_input = input
+		# result = my_raw_input()
 		# test №1. All data ok
 		# self.outf.seek(0)
-		self.outf.truncate()
-		sshd_config(self.outf, selectOs(tmp_os), tmp_pw)
-		self.outf.seek(0)
-		result = self.outf.read()
-		self.assertEqual(example.format(selectOs(tmp_os), tmp_pw), result)
+		# self.outf.truncate()
+		sshd_config(selectOs(tmp_os), tmp_pw)
+		# self.outf.seek(0)
+		# result = self.outf.read()
+		self.assertEqual(example.format(selectOs(tmp_os), tmp_pw), dockerstrings)
 
 		#test №2. OS incorrect
 		# self.outf.seek(0)
@@ -55,11 +59,11 @@ class testAppFunctions(unittest.TestCase):
 		tmp_pw = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
 
 		# test №1. All data ok
-		self.outf.truncate()
-		telnetd_config(self.outf, selectOs(tmp_os), tmp_pw)
-		self.outf.seek(0)
-		result = self.outf.read()
-		self.assertEqual(example.format(selectOs(tmp_os), tmp_pw), result)
+		# self.outf.truncate()
+		telnetd_config(selectOs(tmp_os), tmp_pw)
+		# self.outf.seek(0)
+		# result = self.outf.read()
+		self.assertEqual(example.format(selectOs(tmp_os), tmp_pw), dockerstrings)
 
 	@unittest.expectedFailure
 	def test_check_existence_in_repository(self):
@@ -72,16 +76,23 @@ class testAppFunctions(unittest.TestCase):
 		# test №3. Bad package
 		self.assertFalse(check_existence_in_repository(tmp_os, "berdsk"))
 
-	# def test_add_external_file(self):
-	# 	return 0
+	# https://docs.python.org/3/library/unittest.mock.html#unittest.mock.patch
+	# https://stackoverflow.com/questions/21046717/python-mocking-raw-input-in-unittests
+	# https://stackoverflow.com/questions/26609910/testing-a-function-which-takes-input-from-user-python
+	# https://stackoverflow.com/questions/30039503/mock-user-input
+	def test_add_external_file(self):
+		#test №1. All data ok. COPY & ADD
+		self.assertEqual(add_external_file("ADD", "/var/www/nginx /web/"), "ADD /var/www/nginx /web/\n")
+		# print(result)
+		self.assertEqual(add_external_file("COPY", "https://hackforces.com/files/nginx.tst /etc/nginx/nginx.conf"), "COPY https://hackforces.com/files/nginx.tst /etc/nginx/nginx.conf\n")
 	# def test_language_interactive(self):
 	# 	return 0
 	# def test_database_interactive(self):
 	# 	return 0
 	# def test_check_existence(self):
 	# 	return 0
-	def tearDown(self):
-		self.outf.close()
+	# def tearDown(self):
+		# self.outf.close()
 
 if __name__ == '__main__':
 	unittest.main(verbosity=2)

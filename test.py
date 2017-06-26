@@ -2,7 +2,6 @@ import unittest
 from unittest.mock import patch
 import random
 import string
-import subprocess
 from docker_generator import *
 
 def selectOs(os):
@@ -30,27 +29,9 @@ class testAppFunctions(unittest.TestCase):
 		example = "RUN {} openssh-server\nRUN mkdir /var/run/sshd\nRUN echo 'root:{}' | chpasswd\nRUN sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config\nEXPOSE 22\nCMD [\"/usr/sbin/sshd\", \"-D\"]\n"
 		tmp_os = random.choice(self.os)
 		tmp_pw = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
-		# _ln = random.choice(self.languagesc)
-		# my_raw_input = input
-		# result = my_raw_input()
+
 		# test №1. All data ok
-		# self.outf.seek(0)
-		# self.outf.truncate()
-		sshd_config(selectOs(tmp_os), tmp_pw)
-		# self.outf.seek(0)
-		# result = self.outf.read()
-		self.assertEqual(example.format(selectOs(tmp_os), tmp_pw), dockerstrings)
-
-		#test №2. OS incorrect
-		# self.outf.seek(0)
-		# self.outf.truncate()
-		# sshd_config(self.outf, "sadasd", tmp_pw)
-		# self.outf.seek(0)
-		# result = self.outf.read()
-		# self.assertEqual(example.format("sadasd", tmp_pw), result)
-
-
-		# self.assertEqual('foo'.upper(), 'FOO')
+		self.assertEqual(example.format(selectOs(tmp_os), tmp_pw), sshd_config(selectOs(tmp_os), tmp_pw))
 
 	def test_telnetd_config(self):
 		#preset
@@ -59,16 +40,11 @@ class testAppFunctions(unittest.TestCase):
 		tmp_pw = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
 
 		# test №1. All data ok
-		# self.outf.truncate()
-		telnetd_config(selectOs(tmp_os), tmp_pw)
-		# self.outf.seek(0)
-		# result = self.outf.read()
-		self.assertEqual(example.format(selectOs(tmp_os), tmp_pw), dockerstrings)
+		self.assertEqual(example.format(selectOs(tmp_os), tmp_pw), telnetd_config(selectOs(tmp_os), tmp_pw))
 
 	@unittest.expectedFailure
 	def test_check_existence_in_repository(self):
 		tmp_os = random.choice(self.os)
-		# check_existence_in_repository("debian", "mysql-server")
 		# test №1. All data ok
 		self.assertTrue(check_existence_in_repository(tmp_os, "mysql-server"))
 		# test №2. Bad OS
@@ -83,11 +59,21 @@ class testAppFunctions(unittest.TestCase):
 	def test_add_external_file(self):
 		#test №1. All data ok. COPY & ADD
 		self.assertEqual(add_external_file("ADD", "/var/www/nginx /web/"), "ADD /var/www/nginx /web/\n")
-		# print(result)
 		self.assertEqual(add_external_file("COPY", "https://hackforces.com/files/nginx.tst /etc/nginx/nginx.conf"), "COPY https://hackforces.com/files/nginx.tst /etc/nginx/nginx.conf\n")
-	# def test_language_interactive(self):
+
+	def test_language_config(self):
+		example = ""
+		tmp_os = random.choice(self.os)
+		tmp_ln = random.choice(self.lang)
+		self.assertEqual(language_config(selectOs(tmp_os), tmp_ln), example)
+		print(dockerstringsc)
 	# 	return 0
-	# def test_database_interactive(self):
+
+	@patch('builtins.input', side_effect=['y', 'y', './test.sql /var/www/test.sql', 'user', 'password', 'database'])
+	def test_database_interactive(self, input):
+		tmp_db = random.choice(self.dbms)
+		self.assertEqual(database_interactive(tmp_db), example)
+
 	# 	return 0
 	# def test_check_existence(self):
 	# 	return 0
@@ -96,10 +82,6 @@ class testAppFunctions(unittest.TestCase):
 
 if __name__ == '__main__':
 	unittest.main(verbosity=2)
-	# dockerfile = open("test_Dockerfile","w")
-	# dockerfile.write("KUES")
-	# ksshd_config(dockerfile, "KEK", "MEK")
-	# dockerfile.close()
 
 
 

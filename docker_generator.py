@@ -84,25 +84,21 @@ def add_external_file_interactive():
     while not answer and len(answer) != 2:
         answer = input("Please, enter source path (or link) of your file and destination path in your Docker: ")
 
+    print(answer)
     dockerstrings.append(add_external_file(cmd, answer))
-    return True
 
-
-def language_config() :
-    return False
-# This function for interactive mode. It allows to expand
+# This function for language adding. It allows to expand
 # program functions for more detail settings
-def language_interactive(install, language):
-    files = []
-
+def language_config(install, language):
     answer = ''
-    while answer.lower() not in "ny":
+    while answer.lower() not in "yn":
         answer = input("This file on local machine? [Y/N]: ")
 
     if answer.lower() is "n":
         return 0
     else:
         files = add_external_file_interactive()
+
 
     if 'python' in language.lower():
         dockerstrings.append("RUN {} python-pip\n".format(install))
@@ -118,13 +114,13 @@ def language_interactive(install, language):
         dockerstrings.append("RUN curl -sS https://getcomposer.org/installer | sudo {} --install-dir=/usr/local/bin --filename=composer\n".format(language))
         # As php's composer make install all references from composer.json in current directory
         # we need to enter to this directory and return come back
-        dockerstrings.append("RUN p=pwn && cd {} && composer install && cd $p\n".format(os.path.dirname(files[1])))
+        # dockerstrings.append("RUN p=pwn && cd {} && composer install && cd $p\n".format(os.path.dirname(files[1])))
 
     if 'node' in language.lower():
         dockerstrings.append("RUN {} npm\n".format(os_installer))
         # As nodejs's npm make install all references from package.json in current directory
         # we need to enter to this directory and return come back
-        dockerstrings.append("RUN p=pwn && cd {} && npm install && cd $p\n".format(os.path.dirname(files[1])))
+        # dockerstrings.append("RUN p=pwn && cd {} && npm install && cd $p\n".format(os.path.dirname(files[1])))
 
 def database_interactive(database):
     answer = ''

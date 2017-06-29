@@ -1,9 +1,33 @@
 from cement.core.foundation import CementApp
 from cement.utils.misc import init_defaults
+from cement.utils.shell import Prompt
 import json
 import os
 import re
 
+install = "apt-get"
+operation_system = ''
+
+language_default = {
+    "c" : "gcc",
+    "python" : "python",
+    "c++" : "g++",
+    "js" : "nodejs",
+    "go" : "golang",
+    "rust" : "rust",
+    "java" : "default-jre",
+    "ruby" : "ruby"
+}
+os_default = {
+    'ubuntu' : 'apt-get -qq -y install',
+    'arch' : 'pacman -S install',
+    'centos' : 'yum install'
+}
+database_default = {
+    'mysql': 'mysql-server',
+    'postgresql': 'postgresql',
+    'mongodb': 'mongodb-org'
+}
 # This variable for forming Dockerfile before writing it to real file
 dockerstrings = []
 
@@ -12,26 +36,30 @@ dockerstrings = []
 # Have only 'root' user and you can set 'passowrd'
 # But after using this function, please, read https://habrahabr.ru/company/infopulse/blog/237737/
 def sshd_config(install, password):
-    dockerstrings.append("RUN {} openssh-server\n".format(install))
-    dockerstrings.append("RUN mkdir /var/run/sshd\n")
+    buffer_string = ''
+    buffer_string = buffer_string + "RUN {} openssh-server\n".format(install)
+    buffer_string = buffer_string + "RUN mkdir /var/run/sshd\n"
 
     # TODO: May be change password before sshd_config
-    dockerstrings.append("RUN echo 'root:{}' | chpasswd\n".format(password))
+    buffer_string = buffer_string + "RUN echo 'root:{}' | chpasswd\n".format(password)
 
     # This string replace all rules in sshd_config
     # It's setting by default only for testing
     # I recommend change this default settings in future.
-    dockerstrings.append("RUN sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config\n")
+    buffer_string = buffer_string + "RUN sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config\n"
 
     # For ssh docker will use 22th port
-    dockerstrings.append("EXPOSE 22\nCMD [\"/usr/sbin/sshd\", \"-D\"]\n")
+    buffer_string = buffer_string + "EXPOSE 22\nCMD [\"/usr/sbin/sshd\", \"-D\"]\n"
 
 def telnetd_config(install, password):
-    dockerstrings.append("RUN {} telnetd\n".format(install))
+    buffer_string = ''
+    buffer_string = buffer_string + "RUN {} telnetd\n".format(install)
 
     # TODO: May be change password before telnetd_config
-    dockerstrings.append("RUN echo 'root:{}' | chpasswd\n".format(password))
-    dockerstrings.append("EXPOSE 23\nCMD [\"/usr/sbin/sshd\", \"-D\"]\n")
+    buffer_string = buffer_string + "RUN echo 'root:{}' | chpasswd\n".format(password)
+    buffer_string = buffer_string + "EXPOSE 23\nCMD [\"/usr/sbin/sshd\", \"-D\"]\n"
+
+    return buffer_string
 
 # Function for checking of existence some package in
 # repository of OS
@@ -90,6 +118,7 @@ def add_external_file_interactive():
 # This function for language adding. It allows to expand
 # program functions for more detail settings
 def language_config(install, language):
+    buffer_string = ''
     answer = ''
     while answer.lower() not in "yn":
         answer = input("This file on local machine? [Y/N]: ")
@@ -101,29 +130,33 @@ def language_config(install, language):
 
 
     if 'python' in language.lower():
-        dockerstrings.append("RUN {} python-pip\n".format(install))
-        dockerstrings.append("RUN p=pwn && cd {}".format(os.path.dirname(files[1])))
         if "3" in language:
-            dockerstrings.append(" && pip3 install -r ./requests.txt ")
+            buffer_string = buffer_string + "RUN {} python3-pip\n".format(install)
+            buffer_string = buffer_string + "RUN p=pwn && cd {}".format(os.path.dirname(files[1]))
+            buffer_string = buffer_string + " && pip3 install -r ./requests.txt "
         else:
-            dockerstrings.append(" && pip install -r ./requests.txt ")
+            buffer_string = buffer_string + "RUN {} python-pip\n".format(install)
+            buffer_string = buffer_string + "RUN p=pwn && cd {}".format(os.path.dirname(files[1]))
+            buffer_string = buffer_string + " && pip install -r ./requests.txt "
 
-        dockerstrings.append("&& cd $p\n")
+        buffer_string = buffer_string + "&& cd $p\n"
 
     if 'php' in language.lower():
-        dockerstrings.append("RUN curl -sS https://getcomposer.org/installer | sudo {} --install-dir=/usr/local/bin --filename=composer\n".format(language))
+        buffer_string = buffer_string + "RUN curl -sS https://getcomposer.org/installer | sudo {} --install-dir=/usr/local/bin --filename=composer\n".format(language)
         # As php's composer make install all references from composer.json in current directory
         # we need to enter to this directory and return come back
-        # dockerstrings.append("RUN p=pwn && cd {} && composer install && cd $p\n".format(os.path.dirname(files[1])))
+        # buffer_string = buffer_string + "RUN p=pwn && cd {} && composer install && cd $p\n".format(os.path.dirname(files[1]))
 
     if 'node' in language.lower():
-        dockerstrings.append("RUN {} npm\n".format(os_installer))
+        buffer_string = buffer_string + "RUN {} npm\n".format(install)
         # As nodejs's npm make install all references from package.json in current directory
         # we need to enter to this directory and return come back
-        # dockerstrings.append("RUN p=pwn && cd {} && npm install && cd $p\n".format(os.path.dirname(files[1])))
+        # buffer_string = buffer_string + "RUN p=pwn && cd {} && npm install && cd $p\n".format(os.path.dirname(files[1]))
+    return buffer_string
 
 def database_interactive(database):
     answer = ''
+    buffer_string = ''
     while answer.lower() not in "yn":
         answer = input("This file on local machine? [Y/N]: ")
 
@@ -139,20 +172,65 @@ def database_interactive(database):
     # https://stackoverflow.com/questions/25920029/setting-up-mysql-and-importing-dump-within-dockerfile
     # https://stackoverflow.com/questions/4546778/how-can-i-import-a-database-with-mysql-from-terminal
     if "mysql" in database.lower():
-        dockerstrings.append("RUN /bin/bash -c \"/usr/bin/mysqld_safe &\" && \
+        buffer_string = buffer_string + "RUN /bin/bash -c \"/usr/bin/mysqld_safe &\" && \
                             sleep 5 && \
                             mysql -u {} -e \"CREATE DATABASE {}\" && \
                             mysql -u {} -p {} {} < {}\n".format(username, database_name,
-                            username, password, database_name, files[1]))
+                            username, password, database_name, files[1])
 
     if "postgresql" in database.lower():
-        dockerstrings.append("RUN psql -U {} {} < {}\n".format(username, database_name, files[1]))
+        buffer_string = buffer_string + "RUN psql -U {} {} < {}\n".format(username, database_name, files[1])
 
     # https://docs.mongodb.com/manual/tutorial/backup-and-restore-tools/
     if "mongodb" in database.lower():
-        dockerstrings.append("RUN mongorestore {}".format(files[1]))
+        buffer_string = buffer_string + "RUN mongorestore {}".format(files[1])
 
+    return buffer_string
 
+class OSPrompt(Prompt):
+    class Meta:
+        text = "Make a choice of OS"
+        options = [
+            'ubuntu',
+            'arch',
+            'centos'
+        ]
+        numbered = True
+    def process_input(self):
+        operation_system = self.input.lower()
+        install = os_default[operation_system]
+
+class LanguagePrompt(Prompt):
+    class Meta:
+        text = "Make a choice of language"
+        options = [
+            'python',
+            'go',
+            'php',
+            'js',
+            'c',
+            'c++',
+            'java',
+            'ruby',
+            'rust'
+        ]
+        numbered = True
+    def process_input(self):
+        language = language_default[self.input.lower()]
+        # TODO: rust, go
+        language_packet = check_existence(operation_system, language)
+class DatabasePrompt(Prompt):
+    class Meta:
+        text = "Make a choice of database"
+        options = [
+            'mysql',
+            'postgresql',
+            'mongodb'
+        ]
+        numbered = True
+    def process_input(self):
+        database = database_default[self.input.lower()]
+        database_packet = check_existence(operation_system, database)
 
 # Function for choice of specific utils from OS's repository
 def check_existence(os_name, default):
@@ -218,9 +296,6 @@ with Cargo() as app:
                           help='choice workdir path' )
     # run the application
     app.run()
-
-    install = "apt-get"
-    operation_system = ''
 
     # TODO: Make checking of OS (if it exist)
     # Choice Operation System and set install

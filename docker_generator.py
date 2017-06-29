@@ -101,6 +101,7 @@ def add_external_file(cmd, answer):
 
 def add_external_file_interactive():
     answer = ''
+
     cmd = "ADD"
     while answer.lower() not in "ny":
         answer = input("This file on local machine? [Y/N]: ")
@@ -113,7 +114,7 @@ def add_external_file_interactive():
         answer = input("Please, enter source path (or link) of your file and destination path in your Docker: ")
 
     print(answer)
-    dockerstrings.append(add_external_file(cmd, answer))
+    return add_external_file(cmd, answer)
 
 # This function for language adding. It allows to expand
 # program functions for more detail settings
@@ -264,6 +265,7 @@ class Cargo(CementApp):
         languages = ['python', 'go', 'php', 'js', 'c', 'c++', 'java', 'ruby', 'rust']
         restart = ['on-failure', 'always', 'unless-stopped']
 with Cargo() as app:
+    buffer_string = ''
     # add arguments to the parser
     app.args.add_argument('-o', '--os', action='store',
                           help='choice Operation System')
@@ -301,7 +303,7 @@ with Cargo() as app:
     # Choice Operation System and set install
     if app.pargs.os:
         choicen_os = app.pargs.os#choise_os_version(app.pargs.os.lower())
-        dockerstrings.append("FROM {}\n".format(choicen_os))
+        buffer_string = buffer_string + "FROM {}\n".format(choicen_os)
         app.log.info("Received option: os => {}".format(choicen_os))
 
         if "ubuntu" in app.pargs.os.lower() or "debian" in app.pargs.os.lower():
@@ -316,8 +318,7 @@ with Cargo() as app:
         # TODO: Except choice of unsupport OS. May be via WHILE
         operation_system = app.pargs.os
 
-
-    dockerstrings.append(maintainer)
+    buffer_string = buffer_string + maintainer
 
     # Make install some language interpretator, independently from OS
     # Language pull: Rust, Go, Ruby, Python, PHP, Javascript, C, C++, Java
@@ -351,12 +352,12 @@ with Cargo() as app:
             language_packet = check_existence(operation_system, "default-jre")
         if "rust" in app.pargs.language.lower():
             print("This is specify language, which are not in {}'s repository. Default value is used".format(operation_system))
-            dockerstrings.append("RUN {} curl".format(install))
-            dockerstrings.append("RUN curl https://sh.rustup.rs -sSf | sh\n")
+            buffer_string = buffer_string + "RUN {} curl\n".format(install)
+            buffer_string = buffer_string + "RUN curl https://sh.rustup.rs -sSf | sh\n"
             specify_language = 1
 
         if not specify_language:
-            dockerstrings.append("RUN {} {}\n".format(install, language_packet))
+            buffer_string = buffer_string + "RUN {} {}\n".format(install, language_packet)
 
     # Make a choice of Databases
     # Pull of DBs: MySQL, PostgreSQL, MongoDB
@@ -378,7 +379,7 @@ with Cargo() as app:
         if "mongodb" in app.pargs.database.lower():
             database = check_existence(operation_system, "mongodb-org")
 
-        dockerstrings.append("RUN {} {}\n".format(install, database))
+        buffer_string = buffer_string + "RUN {} {}\n".format(install, database)
 
         # Interactive mode for import DB to Docker
         database_interactive(database)
@@ -391,7 +392,7 @@ with Cargo() as app:
             ports = re.findall(r"[, ]*(\d)[, ]*[^-]", app.pargs.ports)
             for port in ports:
                 if port:
-                    dockerstrings.append("EXPOSE {}\n".format(str(port)))
+                    buffer_string = buffer_string + "EXPOSE {}\n".format(str(port))
 
         # If range is given
         if "-" in app.pargs.ports:
@@ -400,7 +401,7 @@ with Cargo() as app:
             i = 0
             while i < len(ports):
                 for port in range(int(ports[i][0]), int(ports[i][1])+1):
-                    dockerstrings.append("EXPOSE {}\n".format(str(port)))
+                    buffer_string = buffer_string + "EXPOSE {}\n".format(str(port))
                 i +=1
 
 
@@ -420,7 +421,7 @@ with Cargo() as app:
     # Make choice container restart condition
     if app.pargs.restart:
         if app.pargs.restart.lower() in restart_conditions:
-            dockerstrings.append("CMD [\"--restart\", \"{}\"]\n".format(app.pargs.restart.lower()))
+            buffer_string = buffer_string + "CMD [\"--restart\", \"{}\"]\n".format(app.pargs.restart.lower())
 
     # Make a choice of volume directory
     if app.pargs.volume:
@@ -431,7 +432,7 @@ with Cargo() as app:
             choice = input("Choose next common(shared) directory (or \'Q\' for finish choice): ")
             if choice.lower() is "q":
                 continue
-            dockerstrings.append("VOLUME [\"{}\"]\n".format(choice))
+                buffer_string = buffer_string + "VOLUME [\"{}\"]\n".format(choice)
 
     # Make a choice of addition files to docker image
     if app.pargs.add:
@@ -452,14 +453,14 @@ with Cargo() as app:
             while choice not in "yn":
                 choice = input("Is this file on your local machine? [Y/N]: ")
                 if choice.lower() is "y":
-                    dockerstrings.append("COPY \"{}\" \"{}\"\n".format(choice_paths_from, choice_paths_to))
+                    buffer_string = buffer_string + "COPY \"{}\" \"{}\"\n".format(choice_paths_from, choice_paths_to)
                 elif choice.lower() is "n":
-                    dockerstrings.append("ADD \"{}\" \"{}\"\n".format(choice_paths_from, choice_paths_to))
+                    buffer_string = buffer_string + "ADD \"{}\" \"{}\"\n".format(choice_paths_from, choice_paths_to)
 
     if app.pargs.workdir:
-        dockerstrings.append("WORKDIR {}\n".format(app.pargs.workdir))
+        buffer_string = buffer_string + "WORKDIR {}\n".format(app.pargs.workdir)
 
     dockerfile = open("Dockerfile", "w")
-    # print(dockerstrings)
-    dockerfile.writelines(dockerstrings)
+    # print(buffer_string)
+    dockerfile.write(buffer_string)
     dockerfile.close()

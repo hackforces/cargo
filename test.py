@@ -61,12 +61,14 @@ class testAppFunctions(unittest.TestCase):
 		self.assertEqual(add_external_file("ADD", "/var/www/nginx /web/"), "ADD /var/www/nginx /web/\n")
 		self.assertEqual(add_external_file("COPY", "https://hackforces.com/files/nginx.tst /etc/nginx/nginx.conf"), "COPY https://hackforces.com/files/nginx.tst /etc/nginx/nginx.conf\n")
 
-	def test_language_config(self):
-		example = ""
+	@patch('builtins.input', side_effect=['tests/requirements.txt', 'tests/composer.json', '', 'tests/packages.json' ])
+	def test_language_config(self, input):
 		tmp_os = random.choice(self.os)
-		tmp_ln = random.choice(self.lang)
-		self.assertEqual(language_config(selectOs(tmp_os), tmp_ln), example)
-		print(dockerstringsc)
+		# tmp_ln = random.choice(self.lang)
+		for i in self.lang:
+			print(i.upper())
+			#print (self.assertEqual(language_config(selectOs(tmp_os), random.choice(self.lang))
+			print(language_config(selectOs(tmp_os), i))
 	# 	return 0
 
 	@patch('builtins.input', side_effect=['y', 'y', './test.sql /var/www/test.sql', 'user', 'password', 'database'])

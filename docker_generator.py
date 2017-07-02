@@ -37,29 +37,29 @@ dockerstrings = []
 # But after using this function, please, read https://habrahabr.ru/company/infopulse/blog/237737/
 def sshd_config(install, password):
     buffer_string = ''
-    buffer_string = buffer_string + "RUN {} openssh-server\n".format(install)
-    buffer_string = buffer_string + "RUN mkdir /var/run/sshd\n"
+    buffer_string += "RUN {} openssh-server\n".format(install)
+    buffer_string += "RUN mkdir /var/run/sshd\n"
 
     # TODO: May be change password before sshd_config
-    buffer_string = buffer_string + "RUN echo 'root:{}' | chpasswd\n".format(password)
+    buffer_string += "RUN echo 'root:{}' | chpasswd\n".format(password)
 
     # This string replace all rules in sshd_config
     # It's setting by default only for testing
     # I recommend change this default settings in future.
-    buffer_string = buffer_string + "RUN sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config\n"
+    buffer_string += "RUN sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config\n"
 
     # For ssh docker will use 22th port
-    buffer_string = buffer_string + "EXPOSE 22\nCMD [\"/usr/sbin/sshd\", \"-D\"]\n"
+    buffer_string += "EXPOSE 22\nCMD [\"/usr/sbin/sshd\", \"-D\"]\n"
 
     return buffer_string
 
 def telnetd_config(install, password):
     buffer_string = ''
-    buffer_string = buffer_string + "RUN {} telnetd\n".format(install)
+    buffer_string += "RUN {} telnetd\n".format(install)
 
     # TODO: May be change password before telnetd_config
-    buffer_string = buffer_string + "RUN echo 'root:{}' | chpasswd\n".format(password)
-    buffer_string = buffer_string + "EXPOSE 23\nCMD [\"/usr/sbin/sshd\", \"-D\"]\n"
+    buffer_string += "RUN echo 'root:{}' | chpasswd\n".format(password)
+    buffer_string += "EXPOSE 23\nCMD [\"/usr/sbin/sshd\", \"-D\"]\n"
 
     return buffer_string
 
@@ -115,46 +115,46 @@ def add_external_file_interactive():
     while not answer and len(answer) != 2:
         answer = input("Please, enter source path (or link) of your file and destination path in your Docker: ")
 
-    print(answer)
+    # print(answer)
     return add_external_file(cmd, answer)
 
 # This function for language adding. It allows to expand
 # program functions for more detail settings
 def language_config(install, language):
     buffer_string = ''
-    file = input('Please, enter config file location')
+    f = input('Please, enter config file location')
     if 'python' in language.lower():
         if "3" in language:
-            buffer_string = buffer_string + "RUN {} python3-pip\n".format(install)
-            buffer_string = buffer_string + "RUN p=pwn && cd {}".format(os.path.dirname(file))
-            buffer_string = buffer_string + " && pip3 install -r ./requests.txt "
+            buffer_string += "RUN {} python3-pip\n".format(install)
+            buffer_string += "RUN p=pwn && cd {}".format(os.path.dirname(f))
+            buffer_string += " && pip3 install -r ./requests.txt "
         else:
-            buffer_string = buffer_string + "RUN {} python-pip\n".format(install)
-            buffer_string = buffer_string + "RUN p=pwn && cd {}".format(os.path.dirname(file))
-            buffer_string = buffer_string + " && pip install -r ./requests.txt "
+            buffer_string += "RUN {} python-pip\n".format(install)
+            buffer_string += "RUN p=pwn && cd {}".format(os.path.dirname(f))
+            buffer_string += " && pip install -r ./requests.txt "
 
-        buffer_string = buffer_string + "&& cd $p\n"
+        buffer_string += "&& cd $p\n"
 
     if 'php' in language.lower():
-        buffer_string = buffer_string + "RUN curl -sS https://getcomposer.org/installer | sudo {}" \
+        buffer_string += "RUN curl -sS https://getcomposer.org/installer | sudo {}" \
                                         " --install-dir=/usr/local/bin --filename=composer\n".format(language)
         # As php's composer make install all references from composer.json in current directory
         # we need to enter to this directory and return come back
-        buffer_string = buffer_string + "RUN p=pwn && cd {} && composer install && cd"
-        "$p\n".format(os.path.dirname(file))
+        buffer_string += "RUN p=pwn && cd {} && composer install && cd"
+        "$p\n".format(os.path.dirname(f))
 
     if 'node' in language.lower():
-        buffer_string = buffer_string + "RUN {} npm\n".format(install)
+        buffer_string += "RUN {} npm\n".format(install)
         # As nodejs's npm make install all references from package.json in current directory
         # we need to enter to this directory and return come back
-        buffer_string = buffer_string + "RUN p=pwn && cd {} && npm install && cd $p\n".format(os.path.dirname(file))
+        buffer_string += "RUN p=pwn && cd {} && npm install && cd $p\n".format(os.path.dirname(f))
     return buffer_string
 
 def database_interactive(database):
     answer = ''
     buffer_string = ''
     while answer.lower() not in "yn":
-        answer = input("This file on local machine? [Y/N]: ")
+        answer = input("Is this file on local machine? [Y/N]: ")
 
     if answer.lower() is "n":
         return 0
@@ -168,18 +168,18 @@ def database_interactive(database):
     # https://stackoverflow.com/questions/25920029/setting-up-mysql-and-importing-dump-within-dockerfile
     # https://stackoverflow.com/questions/4546778/how-can-i-import-a-database-with-mysql-from-terminal
     if "mysql" in database.lower():
-        buffer_string = buffer_string + "RUN /bin/bash -c \"/usr/bin/mysqld_safe &\" && \
+        buffer_string += "RUN /bin/bash -c \"/usr/bin/mysqld_safe &\" && \
                             sleep 5 && \
                             mysql -u {} -e \"CREATE DATABASE {}\" && \
                             mysql -u {} -p {} {} < {}\n".format(username, database_name,
                             username, password, database_name, files[1])
 
     if "postgresql" in database.lower():
-        buffer_string = buffer_string + "RUN psql -U {} {} < {}\n".format(username, database_name, files[1])
+        buffer_string += "RUN psql -U {} {} < {}\n".format(username, database_name, files[1])
 
     # https://docs.mongodb.com/manual/tutorial/backup-and-restore-tools/
     if "mongodb" in database.lower():
-        buffer_string = buffer_string + "RUN mongorestore {}".format(files[1])
+        buffer_string += "RUN mongorestore {}".format(files[1])
 
     return buffer_string
 
@@ -287,7 +287,7 @@ with Cargo() as app:
                           help='choice common (shared) directory(-ies)' )
 
     app.args.add_argument('-a', '--add', action='store_true',
-                          help='choice voulume directory(-ies)' )
+                          help='choice volume directory(-ies)' )
 
     app.args.add_argument('-w', '--workdir', action='store_true',
                           help='choice workdir path' )
@@ -298,7 +298,7 @@ with Cargo() as app:
     # Choice Operation System and set install
     if app.pargs.os:
         choicen_os = app.pargs.os#choise_os_version(app.pargs.os.lower())
-        buffer_string = buffer_string + "FROM {}\n".format(choicen_os)
+        buffer_string += "FROM {}\n".format(choicen_os)
         app.log.info("Received option: os => {}".format(choicen_os))
 
         if "ubuntu" in app.pargs.os.lower() or "debian" in app.pargs.os.lower():
@@ -313,7 +313,7 @@ with Cargo() as app:
         # TODO: Except choice of unsupport OS. May be via WHILE
         operation_system = app.pargs.os
 
-    buffer_string = buffer_string + maintainer
+    buffer_string += maintainer
 
     # Make install some language interpretator, independently from OS
     # Language pull: Rust, Go, Ruby, Python, PHP, Javascript, C, C++, Java
@@ -348,12 +348,12 @@ with Cargo() as app:
         if "rust" in app.pargs.language.lower():
             print("This is specify language, which are not in {}'s repository. Default value is used"
                   "".format(operation_system))
-            buffer_string = buffer_string + "RUN {} curl\n".format(install)
-            buffer_string = buffer_string + "RUN curl https://sh.rustup.rs -sSf | sh\n"
+            buffer_string += "RUN {} curl\n".format(install)
+            buffer_string += "RUN curl https://sh.rustup.rs -sSf | sh\n"
             specify_language = 1
 
         if not specify_language:
-            buffer_string = buffer_string + "RUN {} {}\n".format(install, language_packet)
+            buffer_string += "RUN {} {}\n".format(install, language_packet)
 
     # Make a choice of Databases
     # Pull of DBs: MySQL, PostgreSQL, MongoDB
@@ -375,10 +375,10 @@ with Cargo() as app:
         if "mongodb" in app.pargs.database.lower():
             database = check_existence(operation_system, "mongodb-org")
 
-        buffer_string = buffer_string + "RUN {} {}\n".format(install, database)
+        buffer_string += "RUN {} {}\n".format(install, database)
 
         # Interactive mode for import DB to Docker
-        buffer_string = buffer_string + database_interactive(database)
+        buffer_string += database_interactive(database)
 
     # Make a choice of ports, using by Docker
     if app.pargs.ports:
@@ -388,7 +388,7 @@ with Cargo() as app:
             ports = re.findall(r"[, ]*(\d)[, ]*[^-]", app.pargs.ports)
             for port in ports:
                 if port:
-                    buffer_string = buffer_string + "EXPOSE {}\n".format(str(port))
+                    buffer_string += "EXPOSE {}\n".format(str(port))
 
         # If range is given
         if "-" in app.pargs.ports:
@@ -397,7 +397,7 @@ with Cargo() as app:
             i = 0
             while i < len(ports):
                 for port in range(int(ports[i][0]), int(ports[i][1])+1):
-                    buffer_string = buffer_string + "EXPOSE {}\n".format(str(port))
+                    buffer_string += "EXPOSE {}\n".format(str(port))
                 i +=1
 
 
@@ -405,11 +405,11 @@ with Cargo() as app:
 
     # Make active ssh-server and setting root's password
     if app.pargs.ssh:
-        buffer_string = buffer_string + sshd_config(install, app.pargs.ssh)
+        buffer_string += sshd_config(install, app.pargs.ssh)
 
     # Make active telnet-server and setting root's password
     if app.pargs.telnet:
-        buffer_string = buffer_string + telnetd_config(install, app.pargs.telnet)
+        buffer_string += telnetd_config(install, app.pargs.telnet)
 
     # List of docker restart conditions
     restart_conditions = ['on-failure', 'always', 'unless-stopped']
@@ -417,7 +417,7 @@ with Cargo() as app:
     # Make choice container restart condition
     if app.pargs.restart:
         if app.pargs.restart.lower() in restart_conditions:
-            buffer_string = buffer_string + "CMD [\"--restart\", \"{}\"]\n".format(app.pargs.restart.lower())
+            buffer_string += "CMD [\"--restart\", \"{}\"]\n".format(app.pargs.restart.lower())
 
     # Make a choice of volume directory
     if app.pargs.volume:
@@ -428,7 +428,7 @@ with Cargo() as app:
             choice = input("Choose next common(shared) directory (or \'Q\' for finish choice): ")
             if choice.lower() is "q":
                 continue
-            buffer_string = buffer_string + "VOLUME [\"{}\"]\n".format(choice)
+            buffer_string += "VOLUME [\"{}\"]\n".format(choice)
 
     # Make a choice of addition files to docker image
     if app.pargs.add:
@@ -449,12 +449,12 @@ with Cargo() as app:
             while choice not in "yn":
                 choice = input("Is this file on your local machine? [Y/N]: ")
                 if choice.lower() is "y":
-                    buffer_string = buffer_string + "COPY \"{}\" \"{}\"\n".format(choice_paths_from, choice_paths_to)
+                    buffer_string += "COPY \"{}\" \"{}\"\n".format(choice_paths_from, choice_paths_to)
                 elif choice.lower() is "n":
-                    buffer_string = buffer_string + "ADD \"{}\" \"{}\"\n".format(choice_paths_from, choice_paths_to)
+                    buffer_string += "ADD \"{}\" \"{}\"\n".format(choice_paths_from, choice_paths_to)
 
     if app.pargs.workdir:
-        buffer_string = buffer_string + "WORKDIR {}\n".format(app.pargs.workdir)
+        buffer_string += "WORKDIR {}\n".format(app.pargs.workdir)
 
     dockerfile = open("Dockerfile", "w")
     # print(buffer_string)

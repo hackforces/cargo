@@ -51,6 +51,8 @@ def sshd_config(install, password):
     # For ssh docker will use 22th port
     buffer_string = buffer_string + "EXPOSE 22\nCMD [\"/usr/sbin/sshd\", \"-D\"]\n"
 
+    return buffer_string
+
 def telnetd_config(install, password):
     buffer_string = ''
     buffer_string = buffer_string + "RUN {} telnetd\n".format(install)
@@ -120,39 +122,32 @@ def add_external_file_interactive():
 # program functions for more detail settings
 def language_config(install, language):
     buffer_string = ''
-    answer = ''
-    while answer.lower() not in "yn":
-        answer = input("This file on local machine? [Y/N]: ")
-
-    if answer.lower() is "n":
-        return 0
-    else:
-        files = add_external_file_interactive()
-
-
+    file = input('Please, enter config file location')
     if 'python' in language.lower():
         if "3" in language:
             buffer_string = buffer_string + "RUN {} python3-pip\n".format(install)
-            buffer_string = buffer_string + "RUN p=pwn && cd {}".format(os.path.dirname(files[1]))
+            buffer_string = buffer_string + "RUN p=pwn && cd {}".format(os.path.dirname(file))
             buffer_string = buffer_string + " && pip3 install -r ./requests.txt "
         else:
             buffer_string = buffer_string + "RUN {} python-pip\n".format(install)
-            buffer_string = buffer_string + "RUN p=pwn && cd {}".format(os.path.dirname(files[1]))
+            buffer_string = buffer_string + "RUN p=pwn && cd {}".format(os.path.dirname(file))
             buffer_string = buffer_string + " && pip install -r ./requests.txt "
 
         buffer_string = buffer_string + "&& cd $p\n"
 
     if 'php' in language.lower():
-        buffer_string = buffer_string + "RUN curl -sS https://getcomposer.org/installer | sudo {} --install-dir=/usr/local/bin --filename=composer\n".format(language)
+        buffer_string = buffer_string + "RUN curl -sS https://getcomposer.org/installer | sudo {}" \
+                                        " --install-dir=/usr/local/bin --filename=composer\n".format(language)
         # As php's composer make install all references from composer.json in current directory
         # we need to enter to this directory and return come back
-        # buffer_string = buffer_string + "RUN p=pwn && cd {} && composer install && cd $p\n".format(os.path.dirname(files[1]))
+        buffer_string = buffer_string + "RUN p=pwn && cd {} && composer install && cd"
+        "$p\n".format(os.path.dirname(file))
 
     if 'node' in language.lower():
         buffer_string = buffer_string + "RUN {} npm\n".format(install)
         # As nodejs's npm make install all references from package.json in current directory
         # we need to enter to this directory and return come back
-        # buffer_string = buffer_string + "RUN p=pwn && cd {} && npm install && cd $p\n".format(os.path.dirname(files[1]))
+        buffer_string = buffer_string + "RUN p=pwn && cd {} && npm install && cd $p\n".format(os.path.dirname(file))
     return buffer_string
 
 def database_interactive(database):
@@ -351,7 +346,8 @@ with Cargo() as app:
         if "java" in app.pargs.language.lower():
             language_packet = check_existence(operation_system, "default-jre")
         if "rust" in app.pargs.language.lower():
-            print("This is specify language, which are not in {}'s repository. Default value is used".format(operation_system))
+            print("This is specify language, which are not in {}'s repository. Default value is used"
+                  "".format(operation_system))
             buffer_string = buffer_string + "RUN {} curl\n".format(install)
             buffer_string = buffer_string + "RUN curl https://sh.rustup.rs -sSf | sh\n"
             specify_language = 1
@@ -382,7 +378,7 @@ with Cargo() as app:
         buffer_string = buffer_string + "RUN {} {}\n".format(install, database)
 
         # Interactive mode for import DB to Docker
-        database_interactive(database)
+        buffer_string = buffer_string + database_interactive(database)
 
     # Make a choice of ports, using by Docker
     if app.pargs.ports:
@@ -409,11 +405,11 @@ with Cargo() as app:
 
     # Make active ssh-server and setting root's password
     if app.pargs.ssh:
-        sshd_config(install, app.pargs.ssh)
+        buffer_string = buffer_string + sshd_config(install, app.pargs.ssh)
 
     # Make active telnet-server and setting root's password
     if app.pargs.telnet:
-        telnetd_config(install, app.pargs.telnet)
+        buffer_string = buffer_string + telnetd_config(install, app.pargs.telnet)
 
     # List of docker restart conditions
     restart_conditions = ['on-failure', 'always', 'unless-stopped']
@@ -432,7 +428,7 @@ with Cargo() as app:
             choice = input("Choose next common(shared) directory (or \'Q\' for finish choice): ")
             if choice.lower() is "q":
                 continue
-                buffer_string = buffer_string + "VOLUME [\"{}\"]\n".format(choice)
+            buffer_string = buffer_string + "VOLUME [\"{}\"]\n".format(choice)
 
     # Make a choice of addition files to docker image
     if app.pargs.add:

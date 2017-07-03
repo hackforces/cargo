@@ -5,6 +5,8 @@ import json
 import os
 import re
 
+test = 1
+
 install = "apt-get"
 operation_system = ''
 
@@ -74,17 +76,21 @@ def check_existence_in_repository(os_name, utils):
     # OS's repositories doesn't downloaded yet
     path = os.path.dirname(__file__) + "/os/{}/".format(os_name)
     if len(os.listdir(path)) < 2:
+        print path+"grabber.py"
 
         # Executing script for parsing all utils's names and versions in repositories
-        os.execl("python", path + "grabber.py")
-
+        os.chdir(path)
+        os.system("python ./grabber.py")
+        os.chdir("../../")
     # Any directory's name corresponds of repository's version
     for file in os.listdir(path):
 
         filepath = path + file
+        print filepath
         if os.path.isdir(filepath):
             # Opening json file (packages.json - result of grabber.py)
             with open(filepath + "/packages.json") as datafile:
+
                 repositorylist = json.load(datafile)
                 for item in enumerate(repositorylist):
                     if utils in item[1]["name"]:
@@ -106,14 +112,14 @@ def add_external_file_interactive():
 
     cmd = "ADD"
     while answer.lower() not in "ny":
-        answer = input("This file on local machine? [Y/N]: ")
+        answer = Prompt("This file on local machine? [Y/N]: ").input
 
     if answer.lower() is "n":
         cmd = "COPY"
 
     answer = ''
     while not answer and len(answer) != 2:
-        answer = input("Please, enter source path (or link) of your file and destination path in your Docker: ")
+        answer = Prompt("Please, enter source path (or link) of your file and destination path in your Docker: ").input
 
     print(answer)
     return add_external_file(cmd, answer)
@@ -122,7 +128,7 @@ def add_external_file_interactive():
 # program functions for more detail settings
 def language_config(install, language):
     buffer_string = ''
-    file = input('Please, enter config file location')
+    file = Prompt('Please, enter config file location').input
     if 'python' in language.lower():
         if "3" in language:
             buffer_string = buffer_string + "RUN {} python3-pip\n".format(install)
@@ -154,16 +160,16 @@ def database_interactive(database):
     answer = ''
     buffer_string = ''
     while answer.lower() not in "yn":
-        answer = input("This file on local machine? [Y/N]: ")
+        answer = Prompt("This file on local machine? [Y/N]: ").input
 
     if answer.lower() is "n":
         return 0
     else:
         files = add_external_file_interactive()
 
-    username = input("Please, enter username: ")
-    password = input("Please, enter password: ")
-    database_name = input("Please, enter database name: ")
+    username = Prompt("Please, enter username: ").input
+    password = Prompt("Please, enter password: ").input
+    database_name = Prompt("Please, enter database name: ").input
 
     # https://stackoverflow.com/questions/25920029/setting-up-mysql-and-importing-dump-within-dockerfile
     # https://stackoverflow.com/questions/4546778/how-can-i-import-a-database-with-mysql-from-terminal
@@ -195,7 +201,6 @@ class OSPrompt(Prompt):
     def process_input(self):
         operation_system = self.input.lower()
         install = os_default[operation_system]
-
 class LanguagePrompt(Prompt):
     class Meta:
         text = "Make a choice of language"
@@ -230,13 +235,18 @@ class DatabasePrompt(Prompt):
 
 # Function for choice of specific utils from OS's repository
 def check_existence(os_name, default):
-    input_value = input("You can choose default package '{}' (press Enter) or enter your own package: ".format(default))
+    global test
+    if test:
+        return default
+    input_value = Prompt("You can choose default package '{}' (press Enter) or enter your own package: ".format(default)
+                         , default=default).input
+    print input_value
     while input_value:
-        if check_existence_in_repository(os_name, input_value):
+        if check_existence_in_repository(os_name, input_value) == True:
             return input_value
         else:
-            input_value = input("This package is not in repository. Please, press Enter to choose default ('{}'): "
-                                    "value, or enter your own package".format(default))
+            input_value = Prompt("This package is not in repository. Please, press Enter to choose default ('{}'): "
+                                    "value, or enter your own package".format(default), default=default).input
     return default
 
 maintainer = "MAINTAINER Stepanov Denis den-isk1995@mail.ru\n"
@@ -378,7 +388,8 @@ with Cargo() as app:
         buffer_string = buffer_string + "RUN {} {}\n".format(install, database)
 
         # Interactive mode for import DB to Docker
-        buffer_string = buffer_string + database_interactive(database)
+        if test == 0:
+            buffer_string = buffer_string + database_interactive(database)
 
     # Make a choice of ports, using by Docker
     if app.pargs.ports:
@@ -425,7 +436,7 @@ with Cargo() as app:
 
         # Processing of directory volume choice
         while choice.lower() != "q":
-            choice = input("Choose next common(shared) directory (or \'Q\' for finish choice): ")
+            choice = Prompt("Choose next common(shared) directory (or \'Q\' for finish choice): ").input
             if choice.lower() is "q":
                 continue
             buffer_string = buffer_string + "VOLUME [\"{}\"]\n".format(choice)
@@ -436,8 +447,8 @@ with Cargo() as app:
 
         # Processing of adding files to image
         while choice_paths_from.lower() != "q":
-            choice_paths_from = input("Choose next file (or \'Q\' for finish choice): ")
-            choice_paths_to = input("Choose destination directory: ")
+            choice_paths_from = Prompt("Choose next file (or \'Q\' for finish choice): ").input
+            choice_paths_to = Prompt("Choose destination directory: ").input
             if choice_paths_from.lower() is "q":
                 continue
 
@@ -447,7 +458,7 @@ with Cargo() as app:
 
             choice = ''
             while choice not in "yn":
-                choice = input("Is this file on your local machine? [Y/N]: ")
+                choice = Prompt("Is this file on your local machine? [Y/N]: ").input
                 if choice.lower() is "y":
                     buffer_string = buffer_string + "COPY \"{}\" \"{}\"\n".format(choice_paths_from, choice_paths_to)
                 elif choice.lower() is "n":

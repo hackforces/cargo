@@ -26,7 +26,7 @@ class testAppFunctions(unittest.TestCase):
 
     # @patch('builtins.input', side_effect=['\n', 'test/ /var/www/html', 'root', '1234', 'testdb'])
     def test_build(self):
-        inp = ['\n', '\n', 'test/ /var/www/html\n', 'root\n', '1234\n', 'testdb\n']
+        inp = ['\n', 'test/ /var/www/html\n', 'root\n', '1234\n', 'testdb\n']
         strings = []
         tmp_cmd = "python docker_generator.py"
         tmp_os = "-o " + random.choice(self.os)
@@ -50,9 +50,10 @@ class testAppFunctions(unittest.TestCase):
         print(request)
         p = subprocess.Popen(request, stdin=PIPE, stdout=PIPE, shell=True)
         try:
-            outs, errs = p.communicate(timeout=15)
-            for i in inp:
-                p.stdin.write(i.encode())
+            outs, errs = p.communicate(input=inp, timeout=15)
+            # for i in inp:
+            #     p.stdout.read()
+            #     p.stdin.write(i)
         except TimeoutExpired:
             p.kill()
             outs, errs = p.communicate()

@@ -17,7 +17,7 @@ language_default = {
     "js" : "nodejs",
     "go" : "golang",
     "rust" : "rust",
-    "java" : "default-jre",
+    "java" : "openjdk-9-jre",
     "ruby" : "ruby"
 }
 os_default = {
@@ -27,8 +27,8 @@ os_default = {
 }
 database_default = {
     'mysql': 'mysql-server',
-    'postgresql': 'postgresql',
-    'mongodb': 'mongodb-org'
+    'postgresql': 'postgresql-9.5',
+    'mongodb': 'mongodb-server mongodb-client mongodb'
 }
 # This variable for forming Dockerfile before writing it to real file
 dockerstrings = []
@@ -69,14 +69,14 @@ def telnetd_config(install, password):
 # repository of OS
 def check_existence_in_repository(os_name, utils):
 
-    if os_name not in os.listdir(os.path.dirname(__file__) + "/os/"):
+    if os_name not in os.listdir(os.path.dirname(__file__) + "./os/"):
         return None
     # TODO: This checking works only in Unix systems
     # If file less than 3 (grabber.py , ., ..), that list of files in
     # OS's repositories doesn't downloaded yet
-    path = os.path.dirname(__file__) + "/os/{}/".format(os_name)
+    path = os.path.dirname(__file__) + "./os/{}/".format(os_name)
     if len(os.listdir(path)) < 2:
-        print path+"grabber.py"
+        print ("%sgrabber.py".format(path))
 
         # Executing script for parsing all utils's names and versions in repositories
         os.chdir(path)
@@ -86,7 +86,7 @@ def check_existence_in_repository(os_name, utils):
     for file in os.listdir(path):
 
         filepath = path + file
-        print filepath
+        print (filepath)
         if os.path.isdir(filepath):
             # Opening json file (packages.json - result of grabber.py)
             with open(filepath + "/packages.json") as datafile:
@@ -158,7 +158,7 @@ def language_config(install, language):
     return buffer_string
 
 def database_interactive(database):
-    print "You are configured database"
+    print ("You are configured database")
     answer = ''
     buffer_string = ''
     while answer.lower() not in "yn":
@@ -177,10 +177,10 @@ def database_interactive(database):
     # https://stackoverflow.com/questions/25920029/setting-up-mysql-and-importing-dump-within-dockerfile
     # https://stackoverflow.com/questions/4546778/how-can-i-import-a-database-with-mysql-from-terminal
     if "mysql" in database.lower():
-        buffer_string += "RUN /bin/bash -c \"/usr/bin/mysqld_safe &\" && \
-                            sleep 5 && \
-                            mysql -u {} -e \"CREATE DATABASE {}\" && \
-                            mysql -u {} -p {} {} < {}\n".format(username, database_name,
+        buffer_string += """RUN /bin/bash -c "/usr/bin/mysqld_safe &" && \\
+                            sleep 5 && \\
+                            mysql -u {} -e "CREATE DATABASE {}" && \\
+                            mysql -u {} -p {} {} < {}\n""".format(username, database_name,
                             username, password, database_name, files[1])
 
     if "postgresql" in database.lower():
@@ -188,7 +188,7 @@ def database_interactive(database):
 
     # https://docs.mongodb.com/manual/tutorial/backup-and-restore-tools/
     if "mongodb" in database.lower():
-        buffer_string += "RUN mongorestore {}".format(files[1])
+        buffer_string += "RUN mongorestore {}\n".format(files[1])
 
     return buffer_string
 
@@ -243,7 +243,7 @@ def check_existence(os_name, default):
         return default
     input_value = Prompt("You can choose default package '{}' (press Enter) or enter your own package: ".format(default)
                          , default=default).input
-    print input_value
+    print (input_value)
     while input_value:
         if check_existence_in_repository(os_name, input_value) == True:
             return input_value
@@ -315,7 +315,7 @@ with Cargo() as app:
         app.log.info("Received option: os => {}".format(choicen_os))
 
         if "ubuntu" in app.pargs.os.lower() or "debian" in app.pargs.os.lower():
-            install = "apt-get -qq -y install"
+            install = "apt-get update && apt-get install -qq -y"
         elif "arch" in app.pargs.os.lower():
             install = "pacman -S install"
         elif "centos" in app.pargs.os.lower():
@@ -337,11 +337,10 @@ with Cargo() as app:
         language_packet = ""
         app.log.info("Received option: l => {}".format(app.pargs.language.lower()))
         if "ruby" in app.pargs.language.lower():
-            if "ubuntu" in app.pargs.os.lower() or "debian" in app.pargs.os.lower():
+            if "ubuntu" in operation_system or "debian" in operation_system:
                 language_packet = "ruby-full"
             else:
                 language_packet = "ruby"
-
         print("You chosen language '{}'".format(app.pargs.language.lower()))
 
         # Make a choice of version
@@ -357,7 +356,10 @@ with Cargo() as app:
             language_packet = check_existence(operation_system, "g++")
         # Make a choice of interpretator
         if "java" in app.pargs.language.lower():
-            language_packet = check_existence(operation_system, "default-jre")
+            if "ubuntu" in operation_system:
+                language_packet = check_existence(operation_system, "openjdk-9-jre")
+            elif "debian" in operation_system:
+                language_packet = check_existence(operation_system, "default-jre")
         if "rust" in app.pargs.language.lower():
             print("This is specify language, which are not in {}'s repository. Default value is used"
                   "".format(operation_system))
@@ -386,7 +388,8 @@ with Cargo() as app:
             database = check_existence(operation_system, "postgresql")
 
         if "mongodb" in app.pargs.database.lower():
-            database = check_existence(operation_system, "mongodb-org")
+            database = check_existence(operation_system, "mongodb-server")
+
 
         buffer_string += "RUN {} {}\n".format(install, database)
 
@@ -400,7 +403,8 @@ with Cargo() as app:
 
         # If sequence is given
         if "," in app.pargs.ports:
-            ports = re.findall(r"[, ]*(\d)[, ]*[^-]", app.pargs.ports)
+            # ports = re.findall(r"[, ]*(\d)[, ]*[^-]", app.pargs.ports)
+            ports = app.pargs.ports.split(",")
             for port in ports:
                 if port:
                     buffer_string += "EXPOSE {}\n".format(str(port))

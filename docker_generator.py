@@ -5,10 +5,11 @@ import json
 import os
 import re
 
-test = 0
+advanced = 0
 
 install = "apt-get"
 operation_system = ''
+work_directory = ''
 
 language_default = {
     "c" : "gcc",
@@ -76,7 +77,7 @@ def check_existence_in_repository(os_name, utils):
     # OS's repositories doesn't downloaded yet
     path = os.path.dirname(__file__) + "./os/{}/".format(os_name)
     if len(os.listdir(path)) < 2:
-        print ("%sgrabber.py".format(path))
+        print ("{}grabber.py".format(path))
 
         # Executing script for parsing all utils's names and versions in repositories
         os.chdir(path)
@@ -161,21 +162,26 @@ def database_interactive(database):
     print ("You are configured database")
     answer = ''
     buffer_string = ''
-    while answer.lower() not in "yn":
-        answer = Prompt("Is this file on local machine? [Y/N]: ").input
+    if advanced == 1:
+        while answer.lower() not in "yn":
+            answer = Prompt("Is this file on local machine? [Y/N]: ").input
 
+        if answer.lower() is "n":
+            return 0
+        else:
+            files = add_external_file_interactive()
 
-    if answer.lower() is "n":
-        return 0
+        username = Prompt("Please, enter username: ").input
+        password = Prompt("Please, enter password: ").input
+        database_name = Prompt("Please, enter database name: ").input
     else:
-        files = add_external_file_interactive()
-
-    username = Prompt("Please, enter username: ").input
-    password = Prompt("Please, enter password: ").input
-    database_name = Prompt("Please, enter database name: ").input
-
-    # https://stackoverflow.com/questions/25920029/setting-up-mysql-and-importing-dump-within-dockerfile
-    # https://stackoverflow.com/questions/4546778/how-can-i-import-a-database-with-mysql-from-terminal
+        buffer_string += "ADD {} /db\n".format(work_directory+"/db/")
+        username = "admin"
+        password = "password"
+        database_name = "database"
+        files = ['', '/db/*']
+        # https://stackoverflow.com/questions/25920029/setting-up-mysql-and-importing-dump-within-dockerfile
+        # https://stackoverflow.com/questions/4546778/how-can-i-import-a-database-with-mysql-from-terminal
     if "mysql" in database.lower():
         buffer_string += """RUN /bin/bash -c "/usr/bin/mysqld_safe &" && \\
                             sleep 5 && \\
@@ -190,6 +196,7 @@ def database_interactive(database):
     if "mongodb" in database.lower():
         buffer_string += "RUN mongorestore {}\n".format(files[1])
 
+    print ("Login: {}\nPassword: {}\nDatabase: {}\n".format(username, password, database.lower()))
     return buffer_string
 
 class OSPrompt(Prompt):
@@ -238,8 +245,7 @@ class DatabasePrompt(Prompt):
 
 # Function for choice of specific utils from OS's repository
 def check_existence(os_name, default):
-    global test
-    if test:
+    if advanced:
         return default
     input_value = Prompt("You can choose default package '{}' (press Enter) or enter your own package: ".format(default)
                          , default=default).input
@@ -287,6 +293,9 @@ with Cargo() as app:
     app.args.add_argument('-p', '--ports', action='store',
                           help='choice using ports')
 
+    app.args.add_argument('--path', action='store',
+                          help='choice of path to directory with sources')
+
     app.args.add_argument('-s', '--ssh', action='store',
                           help='make active ssh-server and set root\'s password' )
 
@@ -304,8 +313,14 @@ with Cargo() as app:
 
     app.args.add_argument('-w', '--workdir', action='store_true',
                           help='choice workdir path' )
+
+    app.args.add_argument('--advanced', action='store_true',
+                          help='enable advanced mode' )
     # run the application
     app.run()
+
+    if app.pargs.path:
+        work_directory = app.pargs.path
 
     # TODO: Make checking of OS (if it exist)
     # Choice Operation System and set install
@@ -331,6 +346,9 @@ with Cargo() as app:
     # Make install some language interpretator, independently from OS
     # Language pull: Rust, Go, Ruby, Python, PHP, Javascript, C, C++, Java
     # For Rust: curl https://sh.rustup.rs -sSf | sh
+
+    if app.pargs.advanced:
+        advanced = 1
 
     if app.pargs.language:
         specify_language = 0
@@ -370,6 +388,8 @@ with Cargo() as app:
         if not specify_language:
             buffer_string += "RUN {} {}\n".format(install, language_packet)
 
+        buffer_string += "ADD {} /apps\n".format(work_directory + "/src/")
+
     # Make a choice of Databases
     # Pull of DBs: MySQL, PostgreSQL, MongoDB
     if app.pargs.database:
@@ -394,8 +414,8 @@ with Cargo() as app:
         buffer_string += "RUN {} {}\n".format(install, database)
 
         # Interactive mode for import DB to Docker
-        if test == 0:
-            buffer_string += database_interactive(database)
+
+        buffer_string += database_interactive(database)
 
 
     # Make a choice of ports, using by Docker
@@ -464,18 +484,12 @@ with Cargo() as app:
                 print("Wrong parameters!")
                 continue
 
-            choice = ''
-            while choice not in "yn":
-                choice = Prompt("Is this file on your local machine? [Y/N]: ").input
-                if choice.lower() is "y":
-                    buffer_string += "COPY \"{}\" \"{}\"\n".format(choice_paths_from, choice_paths_to)
-                elif choice.lower() is "n":
-                    buffer_string += "ADD \"{}\" \"{}\"\n".format(choice_paths_from, choice_paths_to)
+            buffer_string += "ADD \"{}\" \"{}\"\n".format(choice_paths_from, choice_paths_to)
 
     if app.pargs.workdir:
         buffer_string += "WORKDIR {}\n".format(app.pargs.workdir)
 
-    dockerfile = open("Dockerfile", "w")
+    dockerfile = open(work_directory+"/Dockerfile", "w")
     # print(buffer_string)
     dockerfile.write(buffer_string)
     dockerfile.close()

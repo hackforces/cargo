@@ -14,8 +14,10 @@ work_directory = ''
 language_default = {
     "c" : "gcc",
     "python" : "python",
+    "python3" : "python3.5",
     "c++" : "g++",
     "js" : "nodejs",
+    "javascript" : "nodejs",
     "go" : "golang",
     "rust" : "rust",
     "java" : "openjdk-9-jre",
@@ -24,18 +26,35 @@ language_default = {
 os_default = {
     'ubuntu' : 'apt-get -qq -y install',
     'arch' : 'pacman -S install',
-    'centos' : 'yum install'
+    'centos' : 'yum install',
+    'coreos/apache' : 'apt-get -qq -y install',
+    'debian' : 'apt-get -qq -y install',
+    'alpine' : 'apk add -y'
 }
 database_default = {
     'mysql': 'mysql-server',
     'postgresql': 'postgresql-9.5',
     'mongodb': 'mongodb-server mongodb-client mongodb'
 }
+default_services = {
+    'nginx' : 'nginx',
+    'apache' : 'apache2',
+    'unicorn' : 'unicorn'
+}
 # This variable for forming Dockerfile before writing it to real file
 dockerstrings = []
 
 # This files will not add to Docker Image by default
 expected_files = [".", "..", "external.dg", "src", "db", "users.dg"]
+
+# Listing services via comma
+def add_services(services_str):
+    buffer = ''
+    for key in default_services.keys():
+        if key in services_str:
+            service = check_existence(operation_system, default_services[key])
+            buffer += "RUN {} {}".format(install, service)
+    return buffer
 
 # Use external.dg for enter all external files, which you want to add to
 # your Docker image. All files separated by \n (Enter)
@@ -107,23 +126,22 @@ def telnetd_config(install):
 # Function for checking of existence some package in
 # repository of OS
 def check_existence_in_repository(os_name, utils):
-
     if os_name not in os.listdir(os.path.dirname(__file__) + "/os/"):
         return None
     # TODO: This checking works only in Unix systems
     # If file less than 3 (grabber.py , ., ..), that list of files in
     # OS's repositories doesn't downloaded yet
-    path = os.path.dirname(__file__) + "./os/{}/".format(os_name)
+    path = os.path.dirname(__file__) + "/os/{}/".format(os_name)
+    store_dir = os.path.curdir
     if len(os.listdir(path)) < 2:
         print ("{}grabber.py".format(path))
 
         # Executing script for parsing all utils's names and versions in repositories
         os.chdir(path)
         os.system("python ./grabber.py")
-        os.chdir("../../")
+        os.chdir(store_dir)
     # Any directory's name corresponds of repository's version
     for file in os.listdir(path):
-
         filepath = path + file
         print (filepath)
         if os.path.isdir(filepath):
@@ -178,7 +196,7 @@ def language_config(install, language):
         buffer_string += "RUN p=pwn && cd {} && composer install && cd"
         "$p\n".format(os.path.dirname(f))
 
-    if 'node' in language.lower():
+    if 'js' in language.lower():
         buffer_string += "RUN {} npm\n".format(install)
         # As nodejs's npm make install all references from package.json in current directory
         # we need to enter to this directory and return come back
@@ -194,8 +212,6 @@ def database_interactive(database):
     answer = ''
     buffer_string = ''
     if advanced == 1:
-        files = add_external_file_interactive()
-
         username = Prompt("Please, enter username: ").input
         password = Prompt("Please, enter password: ").input
         database_name = Prompt("Please, enter database name: ").input
@@ -274,16 +290,14 @@ class DatabasePrompt(Prompt):
 def check_existence(os_name, default):
     if not advanced:
         return default
-    input_value = Prompt("You can choose default package '{}' (press Enter) or enter your own package: ".format(default)
-                         , default=default).input
-    print (input_value)
-    while input_value:
-        if check_existence_in_repository(os_name, input_value) == True:
-            return input_value
-        else:
-            input_value = Prompt("This package is not in repository. Please, press Enter to choose default ('{}'): "
-                                    "value, or enter your own package".format(default), default=default).input
-    return default
+
+    input_value = Prompt(
+        "Please, enter packege what you are want to use. Press 'Enter' for use default package ({}) "
+        "".format(default)).input
+    if check_existence_in_repository(os_name, input_value) == False:
+        print("Such package ({}) don't exists in {}'s repository.".format(input_value, os_name))
+        return default
+    return input_value
 
 maintainer = "MAINTAINER Stepanov Denis den-isk1995@mail.ru\n"
 
@@ -323,6 +337,9 @@ with Cargo() as app:
     app.args.add_argument('-p', '--ports', action='store',
                           help='choice using ports')
 
+    app.args.add_argument('--services', action='store',
+                          help='choose using services')
+
     app.args.add_argument('-s', '--ssh', action='store_true',
                           help='make active ssh-server' )
 
@@ -351,10 +368,12 @@ with Cargo() as app:
     app.run()
 
     if not app.pargs.os:
-        print("Use flag '-o' for point Operation System for your Docker Image")
+        print("Use flag '-o' for point Operation System for your Docker Image\n"
+              "Please, choose between {}\n".format(os_default))
         exit(-1)
     if not app.pargs.language:
-        print("Use flag '-l' for point Language of your service")
+        print("Use flag '-l' for point Language of your service\n"
+              "Please, choose between {}\n".format(language_default))
         exit(-1)
 
     if app.pargs.path:
@@ -369,14 +388,18 @@ with Cargo() as app:
         buffer_string += "FROM {}\n".format(choicen_os)
         app.log.info("Received option: os => {}".format(choicen_os))
 
-        if "ubuntu" in app.pargs.os.lower() or "debian" in app.pargs.os.lower():
+        if "ubuntu" in app.pargs.os.lower() or "debian" in app.pargs.os.lower()\
+                or 'coreos' in app.pargs.os.lower():
             install = "apt-get update && apt-get install -qq -y"
         elif "arch" in app.pargs.os.lower():
             install = "pacman -S install"
         elif "centos" in app.pargs.os.lower():
             install = "yum install"
+        elif "alpine" in app.pargs.os.lower():
+            install = "apk add -y"
         else:
-            print("We are cannot support this OS: {}\n".format(app.pargs.os))
+            print("We are cannot support this OS: {}\n"
+                  "Please, choose between {}\n".format(app.pargs.os, os_default.keys()))
             exit(-1)
 
         operation_system = app.pargs.os
@@ -389,15 +412,18 @@ with Cargo() as app:
     if app.pargs.advanced:
         advanced = 1
 
+    if app.pargs.services:
+        buffer_string += add_services(app.pargs.services)
+
     if app.pargs.language:
         specify_language = 0
         language_packet = ""
         print("You chosen language '{}'".format(app.pargs.language.lower()))
         if "ruby" in app.pargs.language.lower():
             if "ubuntu" in operation_system or "debian" in operation_system:
-                language_packet = "ruby-full"
+                language_packet = check_existence(operation_system, "ruby-full")
             else:
-                language_packet = "ruby"
+                language_packet = check_existence(operation_system, "ruby")
 
         elif "python3" in app.pargs.language.lower():
             language_packet = check_existence(operation_system, "python3.5")
@@ -433,7 +459,8 @@ with Cargo() as app:
             buffer_string += "RUN curl https://sh.rustup.rs -sSf | sh\n"
             specify_language = 1
         else:
-            print("We cannot support language {}".format(app.pargs.language.lower()))
+            print("We cannot support language {}\n"
+                  "Please, choose between {}\n".format(app.pargs.language, language_default.keys()))
             exit(-1)
 
         if not specify_language:
@@ -463,7 +490,8 @@ with Cargo() as app:
             database = check_existence(operation_system, database_default["mongodb"])
 
         else:
-            print("We cannot support database {}".format(app.pargs.database.lower()))
+            print("We cannot support database {}\n"
+                  "Please, choose between {}\n".format(app.pargs.database, database_default.keys()))
             exit(-1)
 
         buffer_string += "RUN {} {}\n".format(install, database)
@@ -520,8 +548,8 @@ with Cargo() as app:
             buffer_string += "VOLUME [\"{}\"]\n".format(app.pargs.volume)
 
     # Make a choice of addition files to docker image
-    buffer_string += "RUN mkdir /external"
     if app.pargs.add:
+        buffer_string += "RUN mkdir /external"
         buffer_string += add_file()
 
     if app.pargs.user:
